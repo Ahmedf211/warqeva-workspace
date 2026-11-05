@@ -1,11 +1,11 @@
 import * as THREE from 'three';
-import { Campus, FH, CHOREO } from './scene.js?v=202611051645';
-import { initDB, api, USERS, UNITS, FLOORS, subscribe, resetDemo, nextStep, recoveryNotice, canSee, _debugDB } from './data.js?v=202611051645';
-import { runChecks } from './checks.js?v=202611051645';
-import { ROLES as ROLES_LOCAL, CLASSES as CLASSES_LOCAL, UNIVERSAL_RULES as RULES_LOCAL, buildRoles } from './roles.js?v=202611051645';
-import { REGISTER as REGISTER_LOCAL } from './legal.js?v=202611051645';
-import * as SV from './server.js?v=202611051645';
-import { loadServer } from './data.js?v=202611051645';
+import { Campus, FH, CHOREO } from './scene.js?v=202611051656';
+import { initDB, api, USERS, UNITS, FLOORS, subscribe, resetDemo, nextStep, recoveryNotice, canSee, _debugDB } from './data.js?v=202611051656';
+import { runChecks } from './checks.js?v=202611051656';
+import { ROLES as ROLES_LOCAL, CLASSES as CLASSES_LOCAL, UNIVERSAL_RULES as RULES_LOCAL, buildRoles } from './roles.js?v=202611051656';
+import { REGISTER as REGISTER_LOCAL } from './legal.js?v=202611051656';
+import * as SV from './server.js?v=202611051656';
+import { loadServer } from './data.js?v=202611051656';
 let ROLES = ROLES_LOCAL, CLASSES = CLASSES_LOCAL, UNIVERSAL_RULES = RULES_LOCAL, REGISTER = REGISTER_LOCAL;
 
 const $ = (s, r = document) => r.querySelector(s);
@@ -67,7 +67,8 @@ let toastT; function toast(msg) { const t = $('#toast'); t.textContent = msg; t.
 // ---------------- intro (walk-in) ----------------
 function intro() {
   campus.mode = 'exterior'; campus.showFloors(0, { exterior: true });
-  const skipNow = S.reduced || S.direct || (location.hash && location.hash.length > 1) || params.has('nointro');
+  // Walk-in removed at Ahmed's request (5 Nov 2026); add ?walkin to the address to replay it.
+  const skipNow = !params.has('walkin');
   if (skipNow) return frameUI(true);
   const P = (x, y, z) => new THREE.Vector3(x, y, z);
   // 1) establishing exterior → approach the entrance
