@@ -274,6 +274,7 @@ function castFor(id, name, i = 0, extra = {}) {
   return { id, name, skin: skinTones[i % 5], hair: [0x1B1410, 0x3A2A1E, 0x5A3E2A, 0x15120F][i % 4], hairStyle: fem ? (i % 2 ? 'bun' : 'long') : (i % 2 ? 'short' : 'wavy'), top: tops[i % tops.length], coat: null, legs: [0x3A3A3C, 0x4F5B56, 0x6B6E72, 0x2F3B35][i % 4], shoes: 0x2a2a2a, h: fem ? 0.95 : 1.0, ...extra };
 }
 
+export { castFor };
 export class Person {
   constructor(floor, spec, shadows = true) {
     this.spec = spec; this.id = spec.id; this.floor = floor;
@@ -386,7 +387,7 @@ export class Campus {
     sc.add(sun); sc.add(sun.target); this.sun = sun;
     const fill = new THREE.DirectionalLight(0xE8F0FF, 0.35); fill.position.set(20, 15, -10); sc.add(fill);
     this.floors = []; this.rooms = []; this.labels = []; this.people = {}; this.seats = {}; this.solids = {};
-    this.activeFloor = 0; this.mode = 'exterior';
+    this.activeFloor = 0; this.mode = 'exterior'; this.follow = null; this.followOffset = new THREE.Vector3(0, 7.5, 8.5);
     this.buildSite();
     for (let n = 0; n <= 6; n++) this.buildFloor(n);
     this.buildRoof();
@@ -459,7 +460,8 @@ export class Campus {
     const fz = HD;
     for (const sx of [-1, 1]) { const dm = new THREE.Mesh(G.box, mat(0, 'doorglass', 0xD6EAE4, { glass: true, opacity: 0.3 })); dm.scale.set(1.5, 2.8, 0.06); dm.position.set(sx * 0.78, 1.4, fz + 0.05); dm.userData.keep = true; b.g.add(dm); b.box(0.08, 2.9, 0.1, sx * 1.55, 0, fz + 0.05, P.frame, { key: 'frame' }); const edge = new THREE.Mesh(G.box, mat(0, 'frame', P.frame)); edge.scale.set(0.07, 2.8, 0.1); edge.position.set(-sx * 0.72, 0, 0); edge.userData.keep = true; dm.add(edge); edge.scale.divide(dm.scale); edge.position.x = -sx * 0.48; (this.doors = this.doors || []).push(dm); }
     b.box(3.2, 0.1, 0.12, 0, 2.85, fz + 0.05, P.frame, { key: 'frame' });
-    const sign = b.display(0, 3.6, fz + 0.18, 5.2, 0.9, 0, textTexture('WARQÉVA', { w: 1024, h: 180, bg: '#F8F3EA', fg: '#24432F', font: '600 110px Fraunces, Georgia, serif', radius: 10 }), { frame: P.wall });
+    const sign = this.signGroup = b.display(0, 3.6, fz + 0.18, 5.2, 0.9, 0, textTexture('WARQÉVA', { w: 1024, h: 180, bg: '#F8F3EA', fg: '#24432F', font: '600 110px Fraunces, Georgia, serif', radius: 10 }), { frame: P.wall });
+    sign.traverse((o) => { o.userData.keep = true; });
     this.signPos = new THREE.Vector3(0, 3.6, fz + 0.2);
     b.box(6, 0.02, 2.4, 0, 0, fz - 1.6, 0xD8C9AE, { key: 'mat', cast: false });
     // reception
@@ -757,6 +759,15 @@ export class Campus {
     const hit = this.ray.intersectObjects(cands, false)[0];
     return hit ? hit.object : null;
   }
+  pickFloor(clientX, clientY) {
+    const r = this.renderer.domElement.getBoundingClientRect();
+    this.ptr.set(((clientX - r.left) / r.width) * 2 - 1, -((clientY - r.top) / r.height) * 2 + 1);
+    this.ray.setFromCamera(this.ptr, this.camera);
+    const plane = new THREE.Plane(new THREE.Vector3(0, 1, 0), -this.activeFloor * FH); const out = new THREE.Vector3();
+    return this.ray.ray.intersectPlane(plane, out) ? { x: out.x, z: out.z } : null;
+  }
+  addVisitor(floor, x, z, ry) { const F = this.floors[floor]; const p = new Person(floor, castFor('guest', 'You', 3, { top: 0xD9B24C, legs: 0x3E4A44, hairStyle: 'short' }), !this.lowPower); p.place(x, z, ry, false); F.inner.add(p.root); F.people.push(p); this.people['guest@' + floor] = p; return p; }
+  removeVisitor(floor) { const p = this.people['guest@' + floor]; if (!p) return; p.root.parent && p.root.parent.remove(p.root); const F = this.floors[floor]; F.people = F.people.filter((x) => x !== p); delete this.people['guest@' + floor]; }
   person(id, floor) { return this.people[id + '@' + floor]; }
   // queue-based actions
   walk(p, path) { return new Promise((res) => p.queue.push({ type: 'walk', path: path.map(([x, z]) => new THREE.Vector2(x, z)), res })); }
@@ -808,6 +819,12 @@ export class Campus {
     for (let i = this.tweens.length - 1; i >= 0; i--) { const tw = this.tweens[i]; tw.t += dt / tw.dur; const k = Math.min(1, tw.t); tw.fn(tw.ease(k)); if (k >= 1) { this.tweens.splice(i, 1); tw.done && tw.done(); } }
     const F = this.floors[this.activeFloor];
     if (!this.paused) { const list = this.mode === 'exterior' ? [] : F.people; for (const p of list) this.stepPerson(p, this.reduced ? dt * 4 : dt); }
+    if (this.follow && this.tweens.length === 0) {
+      const fp = this.follow.root.position; const y = this.activeFloor * FH;
+      const tgt = new THREE.Vector3(fp.x, y + 0.9, fp.z); const k = 1 - Math.exp(-dt * 3);
+      this.camTarget.lerp(tgt, k); this.camera.position.lerp(tgt.clone().add(this.followOffset), k); this.camera.lookAt(this.camTarget);
+    }
+    this.onTick && this.onTick(dt);
     if (this.controls.enabled) this.controls.update();
     this.renderer.render(this.scene, this.camera);
     this.onFrame && this.onFrame();

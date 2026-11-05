@@ -1,11 +1,12 @@
 import * as THREE from 'three';
-import { Campus, FH, CHOREO } from './scene.js?v=202611051656';
-import { initDB, api, USERS, UNITS, FLOORS, subscribe, resetDemo, nextStep, recoveryNotice, canSee, _debugDB } from './data.js?v=202611051656';
-import { runChecks } from './checks.js?v=202611051656';
-import { ROLES as ROLES_LOCAL, CLASSES as CLASSES_LOCAL, UNIVERSAL_RULES as RULES_LOCAL, buildRoles } from './roles.js?v=202611051656';
-import { REGISTER as REGISTER_LOCAL } from './legal.js?v=202611051656';
-import * as SV from './server.js?v=202611051656';
-import { loadServer } from './data.js?v=202611051656';
+import { Campus, FH, CHOREO } from './scene.js?v=202611051731';
+import { initDB, api, USERS, UNITS, FLOORS, subscribe, resetDemo, nextStep, recoveryNotice, canSee, _debugDB } from './data.js?v=202611051731';
+import { runChecks } from './checks.js?v=202611051731';
+import { ROLES as ROLES_LOCAL, CLASSES as CLASSES_LOCAL, UNIVERSAL_RULES as RULES_LOCAL, buildRoles } from './roles.js?v=202611051731';
+import { REGISTER as REGISTER_LOCAL } from './legal.js?v=202611051731';
+import * as SV from './server.js?v=202611051731';
+import { createVisit } from './visit.js?v=202611051731';
+import { loadServer } from './data.js?v=202611051731';
 let ROLES = ROLES_LOCAL, CLASSES = CLASSES_LOCAL, UNIVERSAL_RULES = RULES_LOCAL, REGISTER = REGISTER_LOCAL;
 
 const $ = (s, r = document) => r.querySelector(s);
@@ -23,6 +24,7 @@ const S = {
 };
 initDB(params.has('fresh') || SV.enabled);
 if (SV.enabled) { S.user = 'visitor'; S.server = true; }
+const SHOWCASE = !!window.WQ_SHOWCASE; if (SHOWCASE) S.user = 'visitor';
 let A = api(S.user);
 // server mode: every action goes to the server gate, then the view reloads from the server
 function wrapServer(base) { return { ...base, act: async (id, action, payload) => { try { const r = await SV.act(id, action, payload); await refreshServer(); return r && r.ok === false ? r : { ok: true, ...(r || {}) }; } catch (e) { return { ok: false, code: e.status, reason: e.message }; } } }; }
@@ -52,7 +54,7 @@ campus.onFrame = () => {
     if (thin && l.kind === 'person') continue;
     if (l.kind === 'person') { if (!l.person.root.visible) continue; l.person.root.getWorldPosition(v); v.y += 2.05 * l.person.s; } else v.copy(l.pos).add(new THREE.Vector3(0, campus.activeFloor * FH, 0));
     const p = campus.project(v); if (!p.vis) continue;
-    let c = chipPool[i]; if (!c) { c = document.createElement('div'); chipPool.push(c); labelsEl.appendChild(c); c.addEventListener('click', () => { const rid = c.dataset.room; if (rid) openRoomById(rid); }); }
+    let c = chipPool[i]; if (!c) { c = document.createElement('div'); chipPool.push(c); labelsEl.appendChild(c); c.addEventListener('click', () => { const rid = c.dataset.room; if (!rid) return; if (visit.onChip(rid)) return; if (!visit.on) openRoomById(rid); }); }
     c.className = 'chip ' + l.kind + (l.person && l.person.id === S.activePerson ? ' active' : '');
     c.textContent = l.text; c.dataset.room = l.roomId || '';
     c.style.left = p.x + 'px'; c.style.top = p.y + 'px'; c.style.display = '';
@@ -64,6 +66,9 @@ campus.onFrame = () => {
 // ---------------- toasts ----------------
 let toastT; function toast(msg) { const t = $('#toast'); t.textContent = msg; t.classList.add('show'); clearTimeout(toastT); toastT = setTimeout(() => t.classList.remove('show'), 3600); }
 
+const visit = createVisit({ campus, $, esc, toast, panel: (h) => panel(h), isMobile });
+window.__wq && (window.__wq.visit = visit);
+function visitPanel() { return `<div class="card"><h3>Client visit</h3><p class="muted">You are the visitor. Tap the floor to walk; tap a glowing spot to read. Jade is the AI host.</p><p class="small muted">Ground-floor showcase only. Text is sample copy awaiting approval.</p><div class="btnrow"><button class="tbtn" data-act="endvisit">End visit</button></div></div>`; }
 // ---------------- intro (walk-in) ----------------
 function intro() {
   campus.mode = 'exterior'; campus.showFloors(0, { exterior: true });
@@ -118,6 +123,7 @@ function renderNav() {
 function setTitle(n) { const f = FLOORS[n]; $('#ftSmall').textContent = n === 5 ? 'WARQÉVA · Discreet' : 'WARQÉVA'; $('#ftH').textContent = f.name; document.title = `${f.name} — WARQÉVA`; }
 
 function goFloor(n, { fly = true, then } = {}) {
+  if (visit.on && n !== 0) visit.stop();
   const r = A.floor(n);
   if (!r.ok) { toast(r.reason); panel(deniedCard(r.reason, `Floor ${n}`)); return false; }
   const from = campus.activeFloor; S.floor = n; S.view = 'floor';
@@ -138,7 +144,7 @@ function openRoomById(id) {
 let downXY = null;
 campus.renderer.domElement.addEventListener('pointerdown', (e) => { downXY = [e.clientX, e.clientY]; });
 campus.renderer.domElement.addEventListener('pointerup', (e) => {
-  if (!downXY || Math.hypot(e.clientX - downXY[0], e.clientY - downXY[1]) > 6 || !S.framed) return;
+  if (!downXY || Math.hypot(e.clientX - downXY[0], e.clientY - downXY[1]) > 6 || !S.framed || visit.on) return;
   const hit = campus.pick(e.clientX, e.clientY); if (hit) openRoomById(hit.userData.roomId);
 });
 
@@ -158,6 +164,7 @@ const FLOOR_NOTES = {
 function floorPanel(n) {
   const [d, note] = FLOOR_NOTES[n];
   let h = `<div class="card"><div class="k">${esc(FLOORS[n].name)}</div><p class="muted">${esc(d)}</p>${note ? `<p class="small muted">${esc(note)}</p>` : ''}<p class="small muted">Tap a room to zoom in. Characters are stand-ins until rigged versions of the approved characters exist.</p></div>`;
+  if (n === 0) h = `<div class="card"><h3>Client visit</h3><p class="muted">Be greeted by Jade and walk the showcase like a game: tap to walk, tap glowing spots to read.</p><div class="btnrow"><button class="tbtn primary" data-act="visit">Start a visit</button></div></div>` + h;
   if (n === 5) h += unitsCard();
   if (n === 6) h += founderCard();
   const rooms = campus.rooms.filter((r) => r.userData.floor === n);
@@ -307,6 +314,8 @@ function act(a, d) {
   else if (a === 'tests') { panel(testsPanel()); setHash('tests'); }
   else if (a === 'reset') { resetDemo(); toast('Demo data reset to the sample state.'); panel(floorPanel(S.floor)); }
   else if (a === 'overview') overview();
+  else if (a === 'visit') { if (campus.activeFloor !== 0) goFloor(0, { then: () => visit.start() }); else visit.start(); panel(visitPanel()); }
+  else if (a === 'endvisit') { visit.stop(); panel(floorPanel(0)); }
   else if (a === 'staff') { panel(directoryPanel()); setHash('staff'); }
   else if (a === 'role') panel(roleCardPanel(d.id));
   else if (a === 'rules') panel(rulesPanel());
@@ -501,6 +510,7 @@ function setWho() {
   wire(document.querySelector('.who'));
 }
 async function boot() {
+  if (SHOWCASE) { document.body.classList.add('showcase'); }
   if (SV.enabled) {
     document.querySelector('.who').innerHTML = '<label>Account</label><div id="whoName" style="font-weight:700;color:#F8F3EA">Checking…</div><p>Access is checked by the server for every request.</p>';
     $('#resetBtn').style.display = 'none';
@@ -508,6 +518,7 @@ async function boot() {
   renderNav(); setTitle(0);
   intro();
   if (SV.enabled) setTimeout(() => gate(), 60);
+  if (SHOWCASE) setTimeout(() => { act('visit'); }, 1300);
 }
 boot();
 
