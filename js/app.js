@@ -1,11 +1,11 @@
 import * as THREE from 'three';
-import { Campus, FH, CHOREO } from './scene.js';
-import { initDB, api, USERS, UNITS, FLOORS, subscribe, resetDemo, nextStep, recoveryNotice, canSee, _debugDB } from './data.js';
-import { runChecks } from './checks.js';
-import { ROLES as ROLES_LOCAL, CLASSES as CLASSES_LOCAL, UNIVERSAL_RULES as RULES_LOCAL, buildRoles } from './roles.js';
-import { REGISTER as REGISTER_LOCAL } from './legal.js';
-import * as SV from './server.js';
-import { loadServer } from './data.js';
+import { Campus, FH, CHOREO } from './scene.js?v=202611051645';
+import { initDB, api, USERS, UNITS, FLOORS, subscribe, resetDemo, nextStep, recoveryNotice, canSee, _debugDB } from './data.js?v=202611051645';
+import { runChecks } from './checks.js?v=202611051645';
+import { ROLES as ROLES_LOCAL, CLASSES as CLASSES_LOCAL, UNIVERSAL_RULES as RULES_LOCAL, buildRoles } from './roles.js?v=202611051645';
+import { REGISTER as REGISTER_LOCAL } from './legal.js?v=202611051645';
+import * as SV from './server.js?v=202611051645';
+import { loadServer } from './data.js?v=202611051645';
 let ROLES = ROLES_LOCAL, CLASSES = CLASSES_LOCAL, UNIVERSAL_RULES = RULES_LOCAL, REGISTER = REGISTER_LOCAL;
 
 const $ = (s, r = document) => r.querySelector(s);
