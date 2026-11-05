@@ -40,7 +40,7 @@ async function refreshIfNeeded() {
 export const signedIn = () => !!session;
 export async function sendLink(email) {
   // create_user:false — only people Ahmed has already added can sign in
-  return call('/auth/v1/otp', { method: 'POST', auth: false, body: { email, create_user: false, options: { email_redirect_to: location.origin + location.pathname } } });
+  return call('/auth/v1/otp?redirect_to=' + encodeURIComponent(location.origin + location.pathname), { method: 'POST', auth: false, body: { email, create_user: false } });
 }
 export function signOut() { const s = session; session = null; store(null); if (s) fetch(CFG.url + '/auth/v1/logout', { method: 'POST', headers: { apikey: CFG.key, Authorization: 'Bearer ' + s.access_token } }).catch(() => {}); }
 
