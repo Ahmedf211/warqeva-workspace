@@ -4,6 +4,21 @@ import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
 import { RoundedBoxGeometry } from 'three/addons/geometries/RoundedBoxGeometry.js';
+import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+
+// ---------------- Kenney Furniture Kit (CC0) ----------------
+const KIT = {};
+const KIT_NAMES = ['desk', 'chairDesk', 'chairCushion', 'loungeSofa', 'loungeSofaLong', 'loungeChair', 'pottedPlant', 'plantSmall1', 'plantSmall2', 'bookcaseOpen', 'books', 'lampRoundFloor', 'lampRoundTable', 'tableRound', 'table', 'tableCoffee', 'computerScreen', 'laptop', 'rugRound', 'rugRectangle', 'sideTable', 'coatRackStanding'];
+export async function loadKit(base) {
+  const L = new GLTFLoader();
+  const res = await Promise.allSettled(KIT_NAMES.map((n) => L.loadAsync(base + n + '.glb').then((g) => [n, g.scene])));
+  for (const r of res) if (r.status === 'fulfilled') {
+    const [n, sc] = r.value; sc.updateMatrixWorld(true);
+    const box = new THREE.Box3().setFromObject(sc), size = box.getSize(new THREE.Vector3()), c = box.getCenter(new THREE.Vector3());
+    const holder = new THREE.Group(); sc.position.set(-c.x, -box.min.y, -c.z); holder.add(sc); KIT[n] = { obj: holder, size };
+  }
+  return Object.keys(KIT).length;
+}
 
 export const FH = 5;            // floor-to-floor height
 export const W = 36, D = 26;    // floor footprint (x, z); front of building = +z
@@ -88,9 +103,28 @@ function screenTexture(kind = 'chart', accent = '#5F7F5B') {
 }
 
 // ---------------- builder ----------------
+function kitColor(name, exec, fabric) {
+  switch (name) {
+    case 'wood': return [exec ? P.walnut : P.oak, {}]; case 'woodDark': return [P.walnut, {}];
+    case 'carpet': case 'carpetBlue': return [fabric ?? P.sage, { rough: 0.95 }]; case 'carpetDarker': return [new THREE.Color(fabric ?? P.sage).multiplyScalar(0.75).getHex(), { rough: 0.95 }];
+    case 'metal': return [0xBFC2BC, { rough: 0.35, metal: 0.5 }]; case 'metalMedium': return [0x6E716C, { rough: 0.4, metal: 0.4 }]; case 'metalDark': return [0x2B3A33, { rough: 0.4, metal: 0.3 }];
+    case 'plant': return [P.leaf, {}]; case 'lamp': return [0xFFF1D6, { emissive: 0xFFD9A0, ei: 0.7 }]; default: return [P.cream, {}];
+  }
+}
 class Builder {
   constructor(group, floor, opts = {}) { this.g = group; this.f = floor; this.solids = []; this.rooms = []; this.labels = []; this.seats = {}; this.exec = !!opts.exec; this.shadows = opts.shadows !== false; }
   m(key, color, o) { return mat(this.f, key, color, o); }
+  // place a Kenney model: size {w,h,d} per-axis, or s uniform scale of the model's height h
+  kit(name, x, y, z, ry, { w, h, d, fabric, solid = true } = {}) {
+    const K = KIT[name]; if (!K) return null;
+    const g = K.obj.clone(true); const sz = K.size;
+    g.scale.set(w ? w / sz.x : (h ? h / sz.y : 1), h ? h / sz.y : 1, d ? d / sz.z : (h ? h / sz.y : 1));
+    g.position.set(x, y, z); g.rotation.y = ry;
+    g.traverse((o) => { if (o.isMesh) { const nm = o.material && o.material.name; const [c, opt] = kitColor(nm, this.exec, fabric); o.material = this.m('kit:' + nm + ':' + (fabric ?? ''), c, opt); o.castShadow = this.shadows; o.receiveShadow = this.shadows; } });
+    this.g.add(g);
+    if (solid) this.solid(x, z, (w || sz.x * g.scale.x), (d || sz.z * g.scale.z), ry);
+    return g;
+  }
   add(mesh, cast = true, recv = true) { mesh.castShadow = cast && this.shadows; mesh.receiveShadow = recv && this.shadows; this.g.add(mesh); return mesh; }
   box(w, h, d, x, y, z, color, { ry = 0, cast = true, solid = false, key = 'b', o } = {}) {
     const soft = ['planter', 'kiosk', 'pot', 'rack'].includes(key); const me = new THREE.Mesh(soft ? G.rbox : G.box, this.m(key, color, o)); me.scale.set(w, h, d); me.position.set(x, y + h / 2, z); me.rotation.y = ry; this.add(me, cast);
@@ -139,8 +173,9 @@ class Builder {
     this.label(label, x, height + 0.5, z - d / 2 + 0.2, 'room', { roomId: id });
     return hit;
   }
-  rug(x, z, r, color = P.rug) { const me = new THREE.Mesh(G.cyl, this.m('rug', color)); me.scale.set(r * 2, 0.02, r * 2); me.position.set(x, 0.02, z); this.add(me, false); }
+  rug(x, z, r, color = P.rug) { if (KIT.rugRound) { this.kit('rugRound', x, 0.01, z, 0, { w: r * 2, h: 0.02, d: r * 2, fabric: color, solid: false }); return; } const me = new THREE.Mesh(G.cyl, this.m('rug', color)); me.scale.set(r * 2, 0.02, r * 2); me.position.set(x, 0.02, z); this.add(me, false); }
   plant(x, z, s = 1, { tall = false } = {}) {
+    if (KIT.pottedPlant) { this.kit(tall ? 'pottedPlant' : (KIT.plantSmall2 ? 'plantSmall2' : 'pottedPlant'), x, 0, z, (x * 7 + z) % 6, { h: (tall ? 1.35 : 0.75) * s }); return; }
     this.cyl(0.22 * s, 0.4 * s, x, 0, z, P.pot, { key: 'pot', seg8: true });
     const h = tall ? 1.1 : 0.6;
     const cols = [P.leaf, P.leaf2, P.leaf3];
@@ -156,6 +191,13 @@ class Builder {
     for (let i = 0; i < 9; i++) { const a = i * 0.7, r = (i % 3) * 0.35 * s; this.sph((0.55 + (i % 2) * 0.15) * s, x + Math.cos(a) * r, (1.7 + (i % 4) * 0.25) * s, z + Math.sin(a) * r, cols[i % 3], { key: 'leaf' }); }
   }
   desk(x, z, ry = 0, { w = 1.5, d = 0.7, wood = null, screen = true, laptop = false } = {}) {
+    if (KIT.desk) {
+      this.kit('desk', x, 0, z, ry, { w, h: 0.76, d });
+      const c = Math.cos(ry), sn = Math.sin(ry), off = -d / 2 + 0.16; // monitor at the far side, facing the seat
+      if (screen && KIT.computerScreen) this.kit('computerScreen', x + sn * off, 0.76, z + c * off, ry, { w: 0.6, h: 0.45, d: 0.14, solid: false });
+      else if (KIT.laptop) this.kit('laptop', x, 0.76, z, ry, { w: 0.36, h: 0.22, d: 0.3, solid: false });
+      return null;
+    }
     const g = new THREE.Group(); g.position.set(x, 0, z); g.rotation.y = ry; this.g.add(g);
     const wd = wood ?? (this.exec ? P.walnut : P.oak);
     const top = new THREE.Mesh(G.box, this.m('wood', wd)); top.scale.set(w, 0.05, d); top.position.y = 0.74; g.add(top);
@@ -168,6 +210,9 @@ class Builder {
     return g;
   }
   chair(x, z, ry = 0, color = null, { arm = false } = {}) {
+    if (arm && KIT.loungeChair) return this.kit('loungeChair', x, 0, z, ry, { w: 0.8, h: 0.8, d: 0.8, fabric: color ?? P.sage, solid: false });
+    if (!color && KIT.chairDesk) return this.kit('chairDesk', x, 0, z, ry, { w: 0.6, h: 1.0, d: 0.58, fabric: P.sageDark, solid: false });
+    if (KIT.chairCushion) return this.kit('chairCushion', x, 0, z, ry, { w: 0.5, h: 0.95, d: 0.5, fabric: color ?? P.sage, solid: false });
     const g = new THREE.Group(); g.position.set(x, 0, z); g.rotation.y = ry; this.g.add(g);
     const c = this.m('fab', color ?? P.sage);
     const seat = new THREE.Mesh(G.rbox, c); seat.scale.set(0.5, 0.1, 0.48); seat.position.y = 0.46; g.add(seat);
@@ -181,6 +226,7 @@ class Builder {
   // seat = chair + register a seat (person root sits at chair centre facing ry)
   seat(id, x, z, ry, color, opts) { this.chair(x, z, ry, color, opts); this.seats[id] = { x, z, ry }; return this.seats[id]; }
   sofa(x, z, w, ry = 0, color = P.sage) {
+    if (KIT.loungeSofa) { this.kit(w > 2.8 && KIT.loungeSofaLong ? 'loungeSofaLong' : 'loungeSofa', x, 0, z, ry, { w, h: 0.85, d: 0.9, fabric: color }); return; }
     const g = new THREE.Group(); g.position.set(x, 0, z); g.rotation.y = ry; this.g.add(g);
     const c = this.m('fab', color);
     const b = new THREE.Mesh(G.rbox, c); b.scale.set(w, 0.42, 0.85); b.position.y = 0.21; g.add(b);
@@ -202,12 +248,18 @@ class Builder {
     }
   }
   roundTable(x, z, r, wood = null, h = 0.74) {
+    if (KIT.tableRound) { this.kit('tableRound', x, 0, z, 0, { w: r * 2, h, d: r * 2 }); return; }
     const wd = wood ?? (this.exec ? P.walnut : P.oak);
     this.cyl(r, 0.05, x, h - 0.05, z, wd, { key: 'wood' }); this.cyl(0.08, h - 0.05, x, 0, z, 0x5b5f5a, { key: 'metal', seg8: true }); this.cyl(0.35, 0.03, x, 0, z, 0x5b5f5a, { key: 'metal', seg8: true });
     this.solid(x, z, r * 1.8, r * 1.8);
   }
-  rectTable(x, z, w, d, wood = null) { const wd = wood ?? (this.exec ? P.walnut : P.oak); this.box(w, 0.06, d, x, 0.7, z, wd, { key: 'wood' }); for (const [sx, sz] of [[-1, -1], [1, -1], [-1, 1], [1, 1]]) this.box(0.08, 0.7, 0.08, x + sx * (w / 2 - 0.2), 0, z + sz * (d / 2 - 0.2), wd, { key: 'wood' }); this.solid(x, z, w, d); }
+  rectTable(x, z, w, d, wood = null) { if (KIT.table) { this.kit('table', x, 0, z, 0, { w, h: 0.75, d }); return; } const wd = wood ?? (this.exec ? P.walnut : P.oak); this.box(w, 0.06, d, x, 0.7, z, wd, { key: 'wood' }); for (const [sx, sz] of [[-1, -1], [1, -1], [-1, 1], [1, 1]]) this.box(0.08, 0.7, 0.08, x + sx * (w / 2 - 0.2), 0, z + sz * (d / 2 - 0.2), wd, { key: 'wood' }); this.solid(x, z, w, d); }
   shelf(x, z, w, ry = 0, h = 2.0) {
+    if (KIT.bookcaseOpen) {
+      this.kit('bookcaseOpen', x, 0, z, ry, { w, h, d: 0.4 });
+      if (KIT.books) { const c = Math.cos(ry), sn = Math.sin(ry); for (let k = 0; k < 4; k++) { const off = ((k % 2) - 0.5) * w * 0.4; this.kit('books', x + c * off, h * (0.06 + k * 0.245), z - sn * off, ry + (k % 2 ? 0.1 : -0.05), { w: w * 0.38, h: h * 0.14, d: 0.26, solid: false }); } }
+      return null;
+    }
     const g = new THREE.Group(); g.position.set(x, 0, z); g.rotation.y = ry; this.g.add(g);
     const wd = this.m('wood', this.exec ? P.walnut : P.oak);
     const back = new THREE.Mesh(G.box, wd); back.scale.set(w, h, 0.36); back.position.y = h / 2; g.add(back);
@@ -227,7 +279,7 @@ class Builder {
     const s = new THREE.Mesh(new THREE.PlaneGeometry(w, h), sm); s.position.z = 0.03; g.add(s);
     return g;
   }
-  lamp(x, z, h = 1.5) { this.cyl(0.02, h, x, 0, z, P.brass, { key: 'brass' }); const sh = this.cyl(0.18, 0.22, x, h, z, 0xFFF1D6, { key: 'shade' }); sh.material = this.m('shadeE', 0xFFF1D6, { emissive: 0xFFD9A0, ei: 0.6 }); }
+  lamp(x, z, h = 1.5) { if (KIT.lampRoundFloor) { this.kit('lampRoundFloor', x, 0, z, 0, { h: h + 0.2, solid: false }); return; } this.cyl(0.02, h, x, 0, z, P.brass, { key: 'brass' }); const sh = this.cyl(0.18, 0.22, x, h, z, 0xFFF1D6, { key: 'shade' }); sh.material = this.m('shadeE', 0xFFF1D6, { emissive: 0xFFD9A0, ei: 0.6 }); }
   core(x, z, { stairs = true, facing = 1 } = {}) {
     // lift + stairs block
     this.box(2.2, 3.0, 0.3, x, 0, z - facing * 0.9, P.wall, { solid: true, key: 'wall' });
@@ -843,6 +895,8 @@ function bake(root, lowPower) {
     let b = buckets.get(key); if (!b) { b = { m: o.material, cast: o.castShadow, recv: o.receiveShadow, geos: [] }; buckets.set(key, b); }
     let gg = o.geometry.index ? o.geometry.toNonIndexed() : o.geometry.clone();
     for (const k of Object.keys(gg.attributes)) if (!['position', 'normal', 'uv'].includes(k)) gg.deleteAttribute(k);
+    if (!gg.attributes.normal) gg.computeVertexNormals();
+    if (!gg.attributes.uv) gg.setAttribute('uv', new THREE.BufferAttribute(new Float32Array(gg.attributes.position.count * 2), 2));
     gg.applyMatrix4(new THREE.Matrix4().multiplyMatrices(inv, o.matrixWorld)); b.geos.push(gg); victims.push(o);
   });
   for (const o of victims) o.parent.remove(o);

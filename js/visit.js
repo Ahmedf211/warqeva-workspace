@@ -2,7 +2,7 @@
 // Jade greets the visitor; tap the floor to walk; glowing spots open reading cards (EN / العربية).
 // All exhibit text is SAMPLE copy awaiting Ahmed's approval. No unpublished client work is shown.
 import * as THREE from 'three';
-import { FH } from './scene.js?v=202611051731';
+import { FH } from './scene.js?v=202611051800';
 
 export const EXHIBITS = [
   { id: 'welcome', at: [0, 9.2], look: [0, 1.6, 6.2], stand: [0, 8.6],

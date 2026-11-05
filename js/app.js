@@ -1,12 +1,12 @@
 import * as THREE from 'three';
-import { Campus, FH, CHOREO } from './scene.js?v=202611051731';
-import { initDB, api, USERS, UNITS, FLOORS, subscribe, resetDemo, nextStep, recoveryNotice, canSee, _debugDB } from './data.js?v=202611051731';
-import { runChecks } from './checks.js?v=202611051731';
-import { ROLES as ROLES_LOCAL, CLASSES as CLASSES_LOCAL, UNIVERSAL_RULES as RULES_LOCAL, buildRoles } from './roles.js?v=202611051731';
-import { REGISTER as REGISTER_LOCAL } from './legal.js?v=202611051731';
-import * as SV from './server.js?v=202611051731';
-import { createVisit } from './visit.js?v=202611051731';
-import { loadServer } from './data.js?v=202611051731';
+import { Campus, FH, CHOREO, loadKit } from './scene.js?v=202611051800';
+import { initDB, api, USERS, UNITS, FLOORS, subscribe, resetDemo, nextStep, recoveryNotice, canSee, _debugDB } from './data.js?v=202611051800';
+import { runChecks } from './checks.js?v=202611051800';
+import { ROLES as ROLES_LOCAL, CLASSES as CLASSES_LOCAL, UNIVERSAL_RULES as RULES_LOCAL, buildRoles } from './roles.js?v=202611051800';
+import { REGISTER as REGISTER_LOCAL } from './legal.js?v=202611051800';
+import * as SV from './server.js?v=202611051800';
+import { createVisit } from './visit.js?v=202611051800';
+import { loadServer } from './data.js?v=202611051800';
 let ROLES = ROLES_LOCAL, CLASSES = CLASSES_LOCAL, UNIVERSAL_RULES = RULES_LOCAL, REGISTER = REGISTER_LOCAL;
 
 const $ = (s, r = document) => r.querySelector(s);
@@ -37,6 +37,7 @@ async function refreshServer() {
   return h;
 }
 
+try { await loadKit('assets/kit/'); } catch (e) { console.warn('Furniture kit not loaded; using built-in shapes', e); }
 const campus = new Campus($('#stage'), { lowPower: isMobile() || params.has('lowpower'), capture: params.has('capture') });
 campus.reduced = S.reduced;
 window.__wq = { campus, S, api, _debugDB, runChecks: () => runChecks(api) };
