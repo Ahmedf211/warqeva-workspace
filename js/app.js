@@ -297,8 +297,9 @@ function act(a, d) {
   else if (a === 'step') doStep();
   else if (a === 'failreview') doStep({ fail: true });
   else if (a === 'live') { Promise.resolve(A.act(S.task, 'run_live', { idem: 'live-' + Date.now() })).then((r) => { toast(r.reason || 'Done'); panel(taskPanel(S.task)); }); }
-  else if (a === 'signin') { panel(signInPanel()); wireSignIn(); }
-  else if (a === 'signout') { SV.signOut(); location.reload(); }
+  else if (a === 'signin') gate();
+  else if (a === 'lock') { SV.rpc('lock_session').finally(() => { S.user = 'visitor'; A = api('visitor'); setWho(); renderNav(); goFloor(0); gate(); }); }
+  else if (a === 'signout') { SV.rpc('lock_session').catch(() => {}).finally(() => { SV.signOut(); location.reload(); }); }
   else if (a === 'decide') openDecision(S.task);
   else if (a === 'play') { const e = A.events().data.find((x) => x.id === d.ev); if (e) playEvent(e); }
   else if (a === 'escalateAhmed' || a === 'escalateTeam') openEscalation(a === 'escalateTeam');
@@ -450,31 +451,62 @@ function route() {
   else if (h === 'rules') panel(rulesPanel());
   else if (h === 'register') panel(registerPanel());
   else goFloor(A.floor(S.floor).ok ? S.floor : 0);
-  if (S.server && S.user === 'visitor') { panel(signInPanel()); wireSignIn(); }
+  if (S.server && S.user === 'visitor') gate();
 }
 window.addEventListener('hashchange', () => { if (!suppressHash && S.framed) route(); });
 subscribe(() => { if (S.view === 'task' && S.task && !$('#modal').classList.contains('show')) panel(taskPanel(S.task)); });
 
+const inp = (id, type, ph, extra = '') => `<input id="${id}" type="${type}" placeholder="${ph}" ${extra} style="width:100%;padding:11px;border:1px solid var(--line);border-radius:12px;font:inherit;margin-top:8px">`;
 function signInPanel(note) {
-  return `<div class="card"><h3>Sign in</h3><p class="muted">Enter your work email. We email you a one-time sign-in link — no password.</p>
-  <form id="siForm"><input id="siEmail" type="email" required autocomplete="email" placeholder="you@example.com" style="width:100%;padding:10px;border:1px solid var(--line);border-radius:12px;font:inherit"><div class="btnrow"><button class="tbtn primary" type="submit">Email me a sign-in link</button></div></form>
-  <p class="small muted">${esc(note || 'Only people Ahmed has added can sign in. Until then you see the building only.')}</p></div>` + floorPanel(0);
+  return `<div class="card"><h3>Sign in</h3><form id="siForm">${inp('siUser', 'text', 'Username', 'autocomplete="username" autocapitalize="none" required')}${inp('siPass', 'password', 'Password', 'autocomplete="current-password" required')}
+  <div class="btnrow"><button class="tbtn primary" type="submit">Sign in</button></div></form><p class="small muted">${esc(note || 'Sign in once on this device. After that you unlock with your 4-digit PIN.')}</p></div>` + floorPanel(0);
 }
-function wireSignIn() { const f = $('#siForm'); if (!f) return; f.onsubmit = async (e) => { e.preventDefault(); const em = $('#siEmail').value.trim(); try { await SV.sendLink(em); panel(signInPanel('Check your inbox for the sign-in link. It works once and expires.')); wireSignIn(); } catch (err) { panel(signInPanel('Could not send the link: ' + err.message)); wireSignIn(); } }; }
+function setupPanel(st, note) {
+  const pw = st.must_change_password;
+  return `<div class="card"><h3>${pw ? 'Set your password and PIN' : 'Set your 4-digit PIN'}</h3><form id="suForm">
+  ${pw ? inp('suPw', 'password', 'New password (at least 10 characters)', 'autocomplete="new-password" minlength="10" required') + inp('suPw2', 'password', 'Repeat new password', 'autocomplete="new-password" minlength="10" required') : ''}
+  ${inp('suPin', 'password', '4-digit PIN', 'inputmode="numeric" pattern="[0-9]{4}" maxlength="4" autocomplete="off" required')}${inp('suPin2', 'password', 'Repeat PIN', 'inputmode="numeric" pattern="[0-9]{4}" maxlength="4" autocomplete="off" required')}
+  <div class="btnrow"><button class="tbtn primary" type="submit">Save</button></div></form><p class="small muted">${esc(note || 'The PIN unlocks this device for 8 hours. 5 wrong tries locks it and you sign in again with your password.')}</p></div>`;
+}
+function pinPanel(note) {
+  return `<div class="card"><h3>Unlock</h3><form id="pnForm">${inp('pnPin', 'password', '4-digit PIN', 'inputmode="numeric" pattern="[0-9]{4}" maxlength="4" autocomplete="off" required autofocus')}
+  <div class="btnrow"><button class="tbtn primary" type="submit">Unlock</button><button class="tbtn" type="button" data-act="signout">Use password instead</button></div></form><p class="small muted">${esc(note || 'Checked by the server. 5 wrong tries locks this account for 15 minutes.')}</p></div>`;
+}
+function show(html, after) { panel(html); after && after(); }
+function wireSignIn() { const f = $('#siForm'); if (!f) return; f.onsubmit = async (e) => { e.preventDefault(); try { await SV.signInPassword($('#siUser').value, $('#siPass').value); await gate(); } catch (err) { show(signInPanel(err.message), wireSignIn); } }; }
+function wireSetup(st) { const f = $('#suForm'); if (!f) return; f.onsubmit = async (e) => { e.preventDefault();
+  try {
+    if (st.must_change_password) { const p1 = $('#suPw').value, p2 = $('#suPw2').value; if (p1.length < 10) throw new Error('Password needs at least 10 characters.'); if (p1 !== p2) throw new Error('Passwords do not match.'); }
+    const a1 = $('#suPin').value, a2 = $('#suPin2').value; if (!/^\d{4}$/.test(a1)) throw new Error('PIN must be 4 digits.'); if (a1 !== a2) throw new Error('PINs do not match.');
+    const r = await SV.rpc('set_pin', { p_pin: a1 }); if (!r.ok) throw new Error(r.reason || 'Could not set PIN.');
+    if (st.must_change_password) { await SV.changePassword($('#suPw').value); await SV.rpc('password_changed'); }
+    await gate();
+  } catch (err) { show(setupPanel(st, err.message), () => wireSetup(st)); } }; }
+function wirePin() { const f = $('#pnForm'); if (!f) return; f.onsubmit = async (e) => { e.preventDefault();
+  try { const r = await SV.rpc('unlock', { p_pin: $('#pnPin').value }); if (!r.ok) { if (r.locked) { SV.signOut(); return show(signInPanel(r.reason), wireSignIn); } throw new Error(r.reason || 'Wrong PIN.'); } await gate(); }
+  catch (err) { show(pinPanel(err.message), wirePin); } }; }
+// decides which screen a signed-in person sees; data loads only after a server-confirmed unlock
+async function gate() {
+  if (!SV.signedIn()) { S.user = 'visitor'; A = api('visitor'); setWho(); return show(signInPanel(), wireSignIn); }
+  let st; try { st = await SV.rpc('session_status'); } catch (e) { SV.signOut(); return show(signInPanel('Please sign in again.'), wireSignIn); }
+  if (!st.ok) { SV.signOut(); return show(signInPanel(st.reason), wireSignIn); }
+  if (st.must_change_password || !st.has_pin) return show(setupPanel(st), () => wireSetup(st));
+  if (!st.unlocked) return show(pinPanel(), wirePin);
+  await refreshServer(); setWho(); renderNav(); goFloor(S.floor || 0); toast(`Unlocked · ${USERS[S.user].name}`);
+}
+function setWho() {
+  const el = $('#whoName'); if (!el) return; const who = S.user !== 'visitor' ? USERS[S.user] : null;
+  el.innerHTML = who ? esc(who.name + ' · ' + who.title) + ' <div class="btnrow"><button class="tbtn" data-act="lock">Lock</button><button class="tbtn" data-act="signout">Sign out</button></div>' : (SV.signedIn() ? 'Locked' : 'Not signed in');
+  wire(document.querySelector('.who'));
+}
 async function boot() {
   if (SV.enabled) {
-    document.querySelector('.who').innerHTML = '<label>Signed in</label><div id="whoName" style="font-weight:700;color:#F8F3EA">Checking…</div><p>Access is checked by the server for every request.</p>';
+    document.querySelector('.who').innerHTML = '<label>Account</label><div id="whoName" style="font-weight:700;color:#F8F3EA">Checking…</div><p>Access is checked by the server for every request.</p>';
     $('#resetBtn').style.display = 'none';
-    const red = SV.captureRedirect();
-    if (SV.signedIn()) { try { await refreshServer(); } catch (e) { toast('Could not load your workspace: ' + e.message + '. You can still look around the building.'); S.user = 'visitor'; A = api('visitor'); } }
-    const who = S.user !== 'visitor' ? USERS[S.user] : null;
-    $('#whoName').innerHTML = who ? esc(who.name + ' · ' + who.title) + ' <button class="tbtn" data-act="signout" style="margin-top:6px">Sign out</button>' : 'Not signed in';
-    wire(document.querySelector('.who'));
-    if (typeof red === 'string') toast('Sign-in link problem: ' + red);
   }
   renderNav(); setTitle(0);
   intro();
-  if (SV.enabled && S.user === 'visitor') setTimeout(() => { panel(signInPanel()); wireSignIn(); }, 50);
+  if (SV.enabled) setTimeout(() => gate(), 60);
 }
 boot();
 

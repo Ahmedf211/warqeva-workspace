@@ -38,6 +38,18 @@ async function refreshIfNeeded() {
 }
 
 export const signedIn = () => !!session;
+const LOGIN_DOMAIN = 'login.warqeva.app';
+export async function signInPassword(username, password) {
+  const u = String(username || '').trim().toLowerCase();
+  if (!/^[a-z0-9._-]{2,30}$/.test(u)) throw new Error('Check your username.');
+  const r = await fetch(CFG.url + '/auth/v1/token?grant_type=password', { method: 'POST', headers: { apikey: CFG.key, 'Content-Type': 'application/json' }, body: JSON.stringify({ email: u + '@' + LOGIN_DOMAIN, password }) });
+  const d = await r.json().catch(() => ({}));
+  if (!r.ok) throw new Error(r.status === 400 ? 'Username or password is not right.' : (d.error_description || d.msg || 'Sign-in failed.'));
+  session = { access_token: d.access_token, refresh_token: d.refresh_token, expires_at: Date.now() / 1000 + d.expires_in }; store(session);
+  await rpc('password_signed_in');
+}
+export async function changePassword(pw) { return call('/auth/v1/user', { method: 'PUT', body: { password: pw } }); }
+export async function rpc(name, args = {}) { return call('/rest/v1/rpc/' + name, { method: 'POST', body: args }); }
 export async function sendLink(email) {
   // create_user:false — only people Ahmed has already added can sign in
   return call('/auth/v1/otp?redirect_to=' + encodeURIComponent(location.origin + location.pathname), { method: 'POST', auth: false, body: { email, create_user: false } });
