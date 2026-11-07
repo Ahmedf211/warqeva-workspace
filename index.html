@@ -112,6 +112,8 @@ body.framed .chrome{opacity:1;pointer-events:auto}
 .chip.spot{background:#F8B123;color:#2b2100}
 body.showcase .who, body.showcase #headNav, body.showcase .rail-h.heads, body.showcase #testsBtn, body.showcase #resetBtn, body.showcase #staffBtn, body.showcase #rulesBtn, body.showcase #regBtn, body.showcase .demo{display:none !important}
 body.visiting #handoffCard{display:none !important}
+#teamLink{display:none;text-decoration:none}
+body.showcase #teamLink{display:inline-flex;align-items:center}
 /* modal (decision) */
 .modal{position:fixed;inset:0;background:rgba(20,28,24,.42);z-index:50;display:none;align-items:center;justify-content:center;padding:18px}
 .modal.show{display:flex}
@@ -187,6 +189,7 @@ textarea{width:100%;border:1px solid var(--line);border-radius:12px;padding:10px
   <span class="pill demo hide-m" title="All tasks, events and agent actions here are demonstration data">● Demo data · simulated agents</span>
   <span class="pill off hide-m">Paid execution off</span>
   <button class="tbtn hide-m" id="overviewBtn">Building overview</button>
+  <a class="tbtn" id="teamLink" href="./workspace.html" title="Private workspace for Ahmed and the Discreet team">Team sign-in</a>
 </header>
 
 <aside id="panel" class="chrome" aria-live="polite"></aside>
