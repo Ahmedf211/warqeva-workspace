@@ -1,6 +1,6 @@
 // In-browser acceptance checks (subset of AC03, AC05, AC06, AC07, AC09, AC13). Runs on a fresh sample copy.
-import { _sandbox, api, canEnterFloor, USERS } from './data.js?v=202611051800';
-import { ROLES } from './roles.js?v=202611051800';
+import { _sandbox, api, canEnterFloor, USERS } from './data.js?v=202611080200';
+import { ROLES } from './roles.js?v=202611080200';
 
 export function runChecks() {
   const R = { passed: [], failed: [], untested: [], inconclusive: [] };

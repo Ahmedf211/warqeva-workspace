@@ -1,12 +1,12 @@
 import * as THREE from 'three';
-import { Campus, FH, CHOREO, loadKit } from './scene.js?v=202611051800';
-import { initDB, api, USERS, UNITS, FLOORS, subscribe, resetDemo, nextStep, recoveryNotice, canSee, _debugDB } from './data.js?v=202611051800';
-import { runChecks } from './checks.js?v=202611051800';
-import { ROLES as ROLES_LOCAL, CLASSES as CLASSES_LOCAL, UNIVERSAL_RULES as RULES_LOCAL, buildRoles } from './roles.js?v=202611051800';
-import { REGISTER as REGISTER_LOCAL } from './legal.js?v=202611051800';
-import * as SV from './server.js?v=202611051800';
-import { createVisit } from './visit.js?v=202611051800';
-import { loadServer } from './data.js?v=202611051800';
+import { Campus, FH, CHOREO, loadKit } from './scene.js?v=202611080200';
+import { initDB, api, USERS, UNITS, FLOORS, subscribe, resetDemo, nextStep, recoveryNotice, canSee, _debugDB } from './data.js?v=202611080200';
+import { runChecks } from './checks.js?v=202611080200';
+import { ROLES as ROLES_LOCAL, CLASSES as CLASSES_LOCAL, UNIVERSAL_RULES as RULES_LOCAL, buildRoles } from './roles.js?v=202611080200';
+import { REGISTER as REGISTER_LOCAL } from './legal.js?v=202611080200';
+import * as SV from './server.js?v=202611080200';
+import { createVisit } from './visit.js?v=202611080200';
+import { loadServer } from './data.js?v=202611080200';
 let ROLES = ROLES_LOCAL, CLASSES = CLASSES_LOCAL, UNIVERSAL_RULES = RULES_LOCAL, REGISTER = REGISTER_LOCAL;
 
 const $ = (s, r = document) => r.querySelector(s);
@@ -158,7 +158,7 @@ const FLOOR_NOTES = {
   1: ['Sales and Partnerships on the left with Finance & Procurement; Marketing and Brand on the right with the rehearsal studio; central campaign & proposal table.', ''],
   2: ['Engineering left, Security right, independent assurance facing the handoff table, shared rear lab and incident room.', ''],
   3: ['Central learning garden with Learning & Development, knowledge library, evaluation lab, Agent Resources and Analytics studio around it.', ''],
-  4: ['AI managers: four mirrored wings (Meedz, Sully, Mesi, Joe), Scout research library in the centre, Robin and Mariam in the side rooms.', 'Mariam’s appearance is not approved yet; stand-in shown.'],
+  4: ['AI managers and department leaders around the Scout research library, with Meedz coordinating; Robin (Governance) and Mariam in the side rooms. Sully, Mesi and Joe sit with their humans on Floor 5.', 'Mariam’s appearance is not approved yet; stand-in shown.'],
   5: ['Business units. Each active unit shows its approved logo, colours, human leads and a unit-scoped Meedz office. Layout follows the locked Human Leadership plan.', ''],
   6: ['Private workspace for Ahmed and Meedz: business-unit priorities, confidential work and founder approvals. Owner-only.', ''],
 };

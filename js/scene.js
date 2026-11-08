@@ -618,16 +618,19 @@ export class Campus {
 
   // ---- Floor 4: AI Leadership
   layoutAI(b, F) {
-    const back = ['Meedz', 'Atlas', 'Iris', 'Markus', 'Ling'], backR = ['Kai', 'Rory', 'Chen Wei', 'Mesi'];
-    const front = ['Sully', 'Dev', 'Min-jun', 'Lukas'], frontR = ['Nadia', 'Leila', 'Khalid', 'Joe'];
+    // Sully, Mesi and Joe sit with their humans on Floor 5 (founder floor plan, 4 Nov 2026); their former
+    // Floor 4 slots are shared rooms ('#' prefix = room without a seated character)
+    const back = ['Meedz', 'Atlas', 'Iris', 'Markus', 'Ling'], backR = ['Kai', 'Rory', 'Chen Wei', '#Meeting room'];
+    const front = ['#Briefing room', 'Dev', 'Min-jun', 'Lukas'], frontR = ['Nadia', 'Leila', 'Khalid', '#Review room'];
     const ow = 3.4, od = 4.4; let i = 0;
     const office = (nm, x, z, facing) => {
+      const shared = nm.startsWith('#'); if (shared) nm = nm.slice(1);
       const id = 'ai-' + nm.toLowerCase().replace(/\W/g, '');
-      const lead = ['Meedz', 'Sully', 'Mesi', 'Joe'].includes(nm);
+      const lead = nm === 'Meedz';
       b.room(id, nm, x, z, ow, od, { door: { side: facing > 0 ? 's' : 'n', at: 0.9, w: 1.0 }, tint: lead ? 0xE6DCC4 : null });
       b.display(x - 0.6, 1.55, z - facing * (od / 2 - 0.12), 1.4, 0.9, facing > 0 ? 0 : Math.PI, screenTexture(['bars', 'chart', 'list', 'shield', 'flow'][i % 5]));
-      const pid = nm.toLowerCase().replace(/\W/g, '');
-      this.deskStation(F, pid, nm, x - 0.4, z - facing * 0.2, facing > 0 ? 0 : Math.PI, { i, person: true });
+      if (shared) { b.roundTable(x, z, 0.55); b.chair(x - 0.9, z, Math.PI / 2, P.sage); b.chair(x + 0.9, z, -Math.PI / 2, P.sage); }
+      else { const pid = nm.toLowerCase().replace(/\W/g, ''); this.deskStation(F, pid, nm, x - 0.4, z - facing * 0.2, facing > 0 ? 0 : Math.PI, { i, person: true }); }
       b.plant(x + ow / 2 - 0.45, z - facing * (od / 2 - 0.5), 0.8); i++;
     };
     back.forEach((nm, k) => office(nm, -HW + ow / 2 + 0.2 + k * ow, -HD + od / 2 + 0.3, 1));
