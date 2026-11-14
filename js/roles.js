@@ -1,5 +1,5 @@
 // WARQÉVA — role cards for the AI workforce (Rev 1, 5 Nov 2026)
-// Sources: Full_Scope_EN_AR.md §2–6 and §10, Character roster, Mariam role card, Meedz_AI_Staff.pdf (47 entries).
+// Sources: Full_Scope_EN_AR.md §2–6 and §10, Character roster, Mariam role card, Meedz_AI_Staff.pdf (47 entries) + 4 counterparts = 51-role baseline (v0.4).
 // Status for every card: DEFINED, not yet assessed. No agent is provisioned, trained or running.
 
 // Authority classes (Full scope §6, Mariam card §4). Stage 1: only A runs; B is treated as C.
